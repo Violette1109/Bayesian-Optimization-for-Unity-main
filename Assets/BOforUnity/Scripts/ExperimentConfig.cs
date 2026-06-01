@@ -1,3 +1,4 @@
+using System.IO;
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -19,6 +20,9 @@ public class ExperimentConfig : MonoBehaviour
 
     [Tooltip("User ID 面板上的 Continue 按鈕")]
     public Button userIdContinueBtn;
+
+    [Tooltip("Button shown after a condition finishes to return to the config panel for the next condition")]
+    public Button nextSectionBtn;
 
     // ─────────────────────────────────────────────
     // Config Panel UI
@@ -101,6 +105,8 @@ public class ExperimentConfig : MonoBehaviour
             configPanel.SetActive(_baselinePhaseCompleted);
             boManager.welcomePanel.SetActive(false);
             boManager.nextButton.SetActive(false);
+            if (nextSectionBtn != null)
+                nextSectionBtn.gameObject.SetActive(false);
 
             if (boManager.pythonStarter != null)
                 boManager.pythonStarter.enabled = false;
@@ -109,6 +115,8 @@ public class ExperimentConfig : MonoBehaviour
         {
             userIdPanel.SetActive(false);
             configPanel.SetActive(false);
+            if (nextSectionBtn != null)
+                nextSectionBtn.gameObject.SetActive(false);
             ApplyConfig();
         }
     }
@@ -121,6 +129,9 @@ public class ExperimentConfig : MonoBehaviour
         if (_experimentStarted) return;
 
         userIdContinueBtn.onClick.AddListener(OnUserIdContinueClicked);
+
+        if (nextSectionBtn != null)
+            nextSectionBtn.onClick.AddListener(OnNextSectionClicked);
 
         if (!string.IsNullOrEmpty(_userId) && userIdInputField != null)
             userIdInputField.text = _userId;
@@ -188,8 +199,11 @@ public class ExperimentConfig : MonoBehaviour
 
         UpdateBaselineDataPaths();
 
-        if (_baselinePhaseCompleted)
+        if (_baselinePhaseCompleted || HasExistingBaselineData(_userId))
+        {
+            _baselinePhaseCompleted = true;
             ShowPhase2ConfigPanel();
+        }
         else
             StartBaselinePhase();
     }
@@ -591,6 +605,81 @@ public class ExperimentConfig : MonoBehaviour
 
         Debug.Log("[ExperimentConfig] Baseline phase completed. Showing Phase 2 config panel.");
         ShowPhase2ConfigPanel();
+    }
+
+    /// <summary>
+    /// Checks whether baseline CSV files already exist on disk for the given user ID.
+    /// If all three baseline scale files (params + objectives) are present, returns true.
+    /// </summary>
+    private bool HasExistingBaselineData(string userId)
+    {
+        if (string.IsNullOrEmpty(userId))
+            return false;
+
+        string userFolder = LogDataFolderUtility.NormalizeLogFolderToken(userId);
+        string logRoot = LogDataFolderUtility.StreamingAssetsLogRoot;
+
+        if (string.IsNullOrEmpty(logRoot))
+        {
+            Debug.LogWarning("[ExperimentConfig] StreamingAssetsLogRoot is null or empty. Cannot check baseline data.");
+            return false;
+        }
+
+        foreach (int scale in BaselineScales)
+        {
+            string paramsPath = Path.Combine(logRoot, userFolder, $"baseline_{scale}_params.csv");
+            string objectivesPath = Path.Combine(logRoot, userFolder, $"baseline_{scale}_objectives.csv");
+
+            if (!File.Exists(paramsPath) || !File.Exists(objectivesPath))
+            {
+                Debug.Log($"[ExperimentConfig] Baseline data missing for scale {scale}: {paramsPath}");
+                return false;
+            }
+        }
+
+        Debug.Log($"[ExperimentConfig] Existing baseline data found for user '{userId}'. Skipping baseline phase.");
+        return true;
+    }
+
+    /// <summary>
+    /// Called when the "Next Section" button is clicked after a condition finishes.
+    /// Resets the experiment state and shows the config panel for the next condition.
+    /// </summary>
+    public void OnNextSectionClicked()
+    {
+        _experimentStarted = false;
+
+        // Reset the BoForUnityManager for a fresh condition run
+        ResetBoManagerForNextCondition();
+
+        // Hide the next section button
+        if (nextSectionBtn != null)
+            nextSectionBtn.gameObject.SetActive(false);
+
+        // Show the config panel directly (baseline already completed)
+        ShowPhase2ConfigPanel();
+    }
+
+    /// <summary>
+    /// Resets the BoForUnityManager internal state so it can run another condition
+    /// without restarting the application.
+    /// </summary>
+    private void ResetBoManagerForNextCondition()
+    {
+        if (boManager == null)
+            return;
+
+        boManager.ResetForNextCondition();
+    }
+
+    /// <summary>
+    /// Called by BoForUnityManager (or condition manager) when a condition finishes.
+    /// Shows the "Next Section" button so the experimenter can proceed.
+    /// </summary>
+    public void ShowNextSectionButton()
+    {
+        if (nextSectionBtn != null)
+            nextSectionBtn.gameObject.SetActive(true);
     }
 
     private void ShowPhase2ConfigPanel()

@@ -131,6 +131,7 @@ namespace BOforUnity
         private string _finalDesignObservationCsvPath = null;
         private readonly Dictionary<string, float> _priorSliderRatingHints = new Dictionary<string, float>(StringComparer.Ordinal);
         private readonly Dictionary<string, string> _priorLinearScaleRatingHints = new Dictionary<string, string>(StringComparer.Ordinal);
+        private ExperimentConfig _cachedExperimentConfig = null;
         //-----------------------------------------------
         
         //-----------------------------------------------
@@ -202,6 +203,42 @@ namespace BOforUnity
             // cannot reuse stale values from a prior session or serialized inspector data.
             ClearObjectiveMeasurements();
             simulationRunning = true; // the simulation to true to prevent 
+            totalIterations = GetConfiguredTotalIterations();
+        }
+
+        /// <summary>
+        /// Resets internal state so the manager can run another condition without restarting.
+        /// Called by ExperimentConfig when the experimenter starts the next section.
+        /// </summary>
+        public void ResetForNextCondition()
+        {
+            currentIteration = 1;
+            initialized = false;
+            _waitingForPythonProcess = false;
+            simulationRunning = false;
+            optimizationRunning = false;
+            optimizationFinished = false;
+            _pendingAdvanceRequest = false;
+            _loopTerminated = false;
+            _warnedMissingNextButton = false;
+            _finalDesignRoundPrepared = false;
+            _finalDesignRoundInProgress = false;
+            _finalDesignRoundLogged = false;
+            _finalDesignObservationCsvPath = null;
+            hasNewDesignParameterValues = false;
+            perfectRating = false;
+            perfectRatingStart = false;
+            _runtimeUserFolderReserved = false;
+            ClearPriorSliderRatingHints();
+            ClearPriorLinearScaleRatingHints();
+            ClearObjectiveMeasurements();
+            CancelAutomaticAdvance();
+
+            SetLoadingVisible(false);
+            SetNextButtonVisible(false);
+            SetOptimizerStatePanelVisible(false);
+            SetWelcomePanelVisible(false);
+
             totalIterations = GetConfiguredTotalIterations();
         }
         
@@ -659,7 +696,7 @@ namespace BOforUnity
             SetNextButtonVisible(false);
             SetOutputText(
                 string.IsNullOrWhiteSpace(statusText)
-                    ? "The simulation has finished!\nYou can now close the application."
+                    ? "This condition has finished!\nPress 'Next Section' to continue with the next condition."
                     : statusText
             );
 
@@ -670,6 +707,20 @@ namespace BOforUnity
             catch (Exception e)
             {
                 Debug.LogWarning($"SocketQuit failed during loop termination: {e.Message}");
+            }
+
+            // Notify ExperimentConfig to show the "Next Section" button
+            NotifyExperimentConfigConditionComplete();
+        }
+
+        private void NotifyExperimentConfigConditionComplete()
+        {
+            if (_cachedExperimentConfig == null)
+                _cachedExperimentConfig = FindObjectOfType<ExperimentConfig>();
+
+            if (_cachedExperimentConfig != null)
+            {
+                _cachedExperimentConfig.ShowNextSectionButton();
             }
         }
 
