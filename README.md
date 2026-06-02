@@ -401,7 +401,7 @@ Assets/StreamingAssets/BOData/LogData/
       FittsLawTrialLog.csv
 ```
 
-If the requested user folder already exists, BOforUnity creates a suffix such as `<USER_LOG_ID>_1`, `<USER_LOG_ID>_2`, and so on. This prevents accidental overwrites while still keeping the three condition folders together for the same run.
+If the requested user folder already exists, BOforUnity usually creates a suffix such as `<USER_LOG_ID>_1`, `<USER_LOG_ID>_2`, and so on. Random-condition runs are the exception: they reuse the base user folder so all random rounds stay under one `<USER_LOG_ID>` folder.
 
 This example is useful for HCI experiments where movement amplitude, button size, marker size, button color, objective pointing performance, and subjective single-item ratings should be optimized together. For the original model, see Fitts's 1954 paper, [The Information Capacity of the Human Motor System in Controlling the Amplitude of Movement](https://doi.org/10.1037/h0055392).
 
@@ -597,7 +597,7 @@ These values are always logged as context columns in `ObservationsPerEvaluation.
 
 The same ID triad is also routed into QuestionnaireToolkit through Additional CSV Items. In the standard BO scenes, `QTQuestionnaireManager` reads these values from the active `BoForUnityManager`. In Fitts law baseline conditions where the BO manager is disabled, `FittsLawConditionManager` supplies the context instead.
 
-Log folders are created below `Assets/StreamingAssets/BOData/LogData/`. The user folder is a folder-safe version of `User ID`; invalid path characters are replaced. If that user folder already exists for a new run, BOforUnity uses a suffix such as `_1` or `_2` to prevent overwriting prior data. Condition folders are then created inside that selected user folder.
+Log folders are created below `Assets/StreamingAssets/BOData/LogData/`. The user folder is a folder-safe version of `User ID`; invalid path characters are replaced. If that user folder already exists for a new run, BOforUnity uses a suffix such as `_1` or `_2` to prevent overwriting prior data. Random-condition runs reuse the base user folder instead of creating suffixed user folders.
 
 ![Study Settings](./images/study_settings.png)
 
@@ -874,7 +874,7 @@ LogData/
         multi/run/
 ```
 
-`<USER_LOG_ID>` and `<CONDITION_LOG_ID>` are folder-safe versions of `User ID` and `Condition ID`. If a new run would reuse an existing user folder, BOforUnity creates a suffixed folder such as `<USER_LOG_ID>_1` to avoid overwriting. Within that user folder, all condition-specific files are written below their condition folder.
+`<USER_LOG_ID>` and `<CONDITION_LOG_ID>` are folder-safe versions of `User ID` and `Condition ID`. If a new run would reuse an existing user folder, BOforUnity creates a suffixed folder such as `<USER_LOG_ID>_1` to avoid overwriting (except random-condition runs, which reuse the base `<USER_LOG_ID>` folder). Within that user folder, all condition-specific files are written below their condition folder.
 
 BO/backend run files are written to:
 * *Assets/StreamingAssets/BOData/LogData/&lt;USER_LOG_ID&gt;/&lt;CONDITION_LOG_ID&gt;/run/*
