@@ -619,9 +619,9 @@ public class ExperimentConfig : MonoBehaviour
         string userFolder = LogDataFolderUtility.NormalizeLogFolderToken(userId);
         string initDataRoot = Path.Combine(Application.streamingAssetsPath, "BOData", "InitData");
 
-        if (string.IsNullOrEmpty(initDataRoot))
+        if (!Directory.Exists(initDataRoot))
         {
-            Debug.LogWarning("[ExperimentConfig] InitData root is null or empty. Cannot check baseline data.");
+            Debug.LogWarning($"[ExperimentConfig] InitData directory does not exist: {initDataRoot}");
             return false;
         }
 
