@@ -2966,6 +2966,7 @@ namespace QuestionnaireToolkit.Scripts
                                     sliderQuestion.ResetRuntimeAnswerState();
                                 }
                                 slider.SetValueWithoutNotify(slider.minValue);
+                                ResetSliderScoreReadout(question);
                                 ApplyPriorSliderRatingHint(question, sliderQuestion);
                                 break;
                             case "QTMultipleChoice":
@@ -3022,7 +3023,29 @@ namespace QuestionnaireToolkit.Scripts
                 _visiblePage.SetActive(true);
             }
         }
-        
+
+        /// <summary>
+        /// Resets the optional slider value read-out (a text object named "score") back to its
+        /// placeholder word. The slider value is reset above with SetValueWithoutNotify, which does
+        /// not fire the value-changed display hook, so without this the read-out would keep showing
+        /// the number entered in the previous round until the participant drags the slider again.
+        /// </summary>
+        private static void ResetSliderScoreReadout(GameObject question)
+        {
+            if (question == null)
+                return;
+
+            var texts = question.GetComponentsInChildren<TextMeshProUGUI>(true);
+            foreach (var text in texts)
+            {
+                if (text == null)
+                    continue;
+
+                if (text.gameObject.name.StartsWith("score", StringComparison.OrdinalIgnoreCase))
+                    text.text = "score";
+            }
+        }
+
         /// <summary>
         /// Checks if there are any answers pending which are marked as required. Returns true if any item is still pending.
         /// </summary>
