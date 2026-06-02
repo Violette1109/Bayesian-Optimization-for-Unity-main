@@ -294,6 +294,9 @@ namespace BOforUnity.Examples
                 return;
             }
 
+            if (captureBaselineCsv)
+                AppendBaselineCsvRow();
+
             QueueNextRound();
         }
 
