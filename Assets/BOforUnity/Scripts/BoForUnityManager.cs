@@ -701,7 +701,7 @@ namespace BOforUnity
             SetNextButtonVisible(false);
             SetOutputText(
                 string.IsNullOrWhiteSpace(statusText)
-                    ? "This condition has finished!\nPress 'Next Section' to continue with the next condition."
+                    ? "This condition has finished!"
                     : statusText
             );
 
