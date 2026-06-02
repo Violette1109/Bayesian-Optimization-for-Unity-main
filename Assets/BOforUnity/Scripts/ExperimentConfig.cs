@@ -617,18 +617,18 @@ public class ExperimentConfig : MonoBehaviour
             return false;
 
         string userFolder = LogDataFolderUtility.NormalizeLogFolderToken(userId);
-        string logRoot = LogDataFolderUtility.StreamingAssetsLogRoot;
+        string initDataRoot = Path.Combine(Application.streamingAssetsPath, "BOData", "InitData");
 
-        if (string.IsNullOrEmpty(logRoot))
+        if (string.IsNullOrEmpty(initDataRoot))
         {
-            Debug.LogWarning("[ExperimentConfig] StreamingAssetsLogRoot is null or empty. Cannot check baseline data.");
+            Debug.LogWarning("[ExperimentConfig] InitData root is null or empty. Cannot check baseline data.");
             return false;
         }
 
         foreach (int scale in BaselineScales)
         {
-            string paramsPath = Path.Combine(logRoot, userFolder, $"baseline_{scale}_params.csv");
-            string objectivesPath = Path.Combine(logRoot, userFolder, $"baseline_{scale}_objectives.csv");
+            string paramsPath = Path.Combine(initDataRoot, userFolder, $"baseline_{scale}_params.csv");
+            string objectivesPath = Path.Combine(initDataRoot, userFolder, $"baseline_{scale}_objectives.csv");
 
             if (!File.Exists(paramsPath) || !File.Exists(objectivesPath))
             {
