@@ -530,6 +530,11 @@ namespace BOforUnity
         {
             SetLoadingVisible(true); // show loading while transitioning to next evaluation
             SetNextButtonVisible(false);
+            // The welcome screen is only meant to appear once, before the study begins.
+            // Hide it on every advance so it never reappears between iterations: the panel
+            // lives under the DontDestroyOnLoad manager, so once the covering task canvas is
+            // gone during a scene reload it would otherwise become visible again.
+            SetWelcomePanelVisible(false);
             // Lock progression until new parameters arrive from the backend.
             hasNewDesignParameterValues = false;
 
