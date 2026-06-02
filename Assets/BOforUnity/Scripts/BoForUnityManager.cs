@@ -1278,12 +1278,13 @@ namespace BOforUnity
 
             string requestedUserId = userId;
             string normalizedRequestedUserId = LogDataFolderUtility.NormalizeLogFolderToken(requestedUserId);
+            bool allowExistingConditionFolder = questionnaireRandomForCsv;
             userId = LogDataFolderUtility.GetOrCreateUserFolderTokenForCondition(
                 LogDataFolderUtility.StreamingAssetsLogRoot,
                 requestedUserId,
                 conditionId,
                 allowExistingRequestedUserFolder: true,
-                allowExistingConditionFolder: questionnaireRandomForCsv
+                allowExistingConditionFolder: allowExistingConditionFolder
             );
             _runtimeUserFolderReserved = true;
 
