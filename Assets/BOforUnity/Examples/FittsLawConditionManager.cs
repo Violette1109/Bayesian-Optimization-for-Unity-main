@@ -663,7 +663,7 @@ namespace BOforUnity.Examples
                 requestedUserId,
                 conditionId,
                 allowExistingRequestedUserFolder: true,
-                allowExistingConditionFolder: false
+                allowExistingConditionFolder: conditionMode == ConditionMode.Random
             );
             _runtimeUserFolderReserved = true;
 

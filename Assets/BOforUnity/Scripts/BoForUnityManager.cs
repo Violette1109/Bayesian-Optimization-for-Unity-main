@@ -1283,7 +1283,7 @@ namespace BOforUnity
                 requestedUserId,
                 conditionId,
                 allowExistingRequestedUserFolder: true,
-                allowExistingConditionFolder: false
+                allowExistingConditionFolder: questionnaireRandomForCsv
             );
             _runtimeUserFolderReserved = true;
 
