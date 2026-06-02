@@ -278,7 +278,7 @@ namespace BOforUnity.Examples
                 source.useInitialDataAsPrior = false;
                 source.questionnaireScaleForCsv = conditionId;
                 source.questionnaireSamplingRoundsForCsv = groupId;
-                source.questionnaireRandomForCsv = true;
+                source.questionnaireRandomForCsv = false;
                 source.questionnaireOptimisedForCsv = false;
             }
 

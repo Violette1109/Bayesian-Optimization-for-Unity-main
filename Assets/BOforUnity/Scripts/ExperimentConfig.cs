@@ -544,7 +544,7 @@ public class ExperimentConfig : MonoBehaviour
         boManager.useInitialDataAsPrior = false;
         boManager.questionnaireScaleForCsv = scale.ToString();
         boManager.questionnaireSamplingRoundsForCsv = "baseline";
-        boManager.questionnaireRandomForCsv = true;
+        boManager.questionnaireRandomForCsv = false;
         boManager.questionnaireOptimisedForCsv = false;
 
         var conditionManager = ResolveFittsLawConditionManager();
