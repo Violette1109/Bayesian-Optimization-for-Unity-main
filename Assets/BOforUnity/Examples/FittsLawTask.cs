@@ -348,6 +348,15 @@ namespace BOforUnity.Examples
             BeginTask();
         }
 
+        /// <summary>
+        /// Resets the sequential random design sample index back to 0.
+        /// This is intended to restart a deterministic sampling sequence (e.g., at the start of a baseline block).
+        /// </summary>
+        public void ResetRandomDesignSampleIndex()
+        {
+            _randomDesignSampleIndex = 0;
+        }
+
         public void SetManualLogContext(
             int iteration,
             string phase,

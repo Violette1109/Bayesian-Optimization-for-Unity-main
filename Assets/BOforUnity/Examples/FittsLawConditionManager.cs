@@ -239,6 +239,14 @@ namespace BOforUnity.Examples
         {
             ResolveReferences();
 
+            if (fittsLawTask != null)
+            {
+                // Sequence of operations is important: First enable deterministic seeding, then reset the sample index.
+                // This ensures the next round of baseline block starts precisely at sample index 0 with deterministic seeding active.
+                fittsLawTask.useDeterministicRandomDesignSeed = true;
+                fittsLawTask.ResetRandomDesignSampleIndex();
+            }
+
             captureBaselineCsv = true;
             _baselineBlockActive = true;
             _baselineBlockCompletionNotified = false;
@@ -524,6 +532,11 @@ namespace BOforUnity.Examples
             fittsLawTask.writeObjectivesToBo = false;
             fittsLawTask.writeDetailedAppLogCsv = true;
             fittsLawTask.randomizeDesignParametersOnBegin = conditionMode == ConditionMode.Random || _baselineBlockActive;
+            if (_baselineBlockActive)
+            {
+                // Ensure deterministic random seed remains active across subsequent task sync updates in baseline blocks
+                fittsLawTask.useDeterministicRandomDesignSeed = true;
+            }
         }
 
         private void SyncAdaptiveConditionIdToSource()

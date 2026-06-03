@@ -23,6 +23,8 @@ from scipy.stats import norm
 from scipy.stats.qmc import Sobol
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import ConstantKernel as C, Matern, WhiteKernel
+import torch
+from botorch.utils.sampling import draw_sobol_samples
 
 from loguru import logger
 from .utils.result import ProposeLocationResult
@@ -371,6 +373,10 @@ class BayesOpt:
         self.space = space
         self.ifCost = ifCost
         self.rng = np.random.default_rng(random_state)
+        if random_state is None:
+            self.random_state = int(self.rng.integers(1_000_000_000))
+        else:
+            self.random_state = random_state
 
         logger.info(f"[BayesOpt] Cost-aware mode = {self.ifCost}")
 
@@ -532,12 +538,24 @@ class BayesOpt:
 
     def _sobol_sample(self, n: int) -> np.ndarray:
         """Generate n quasi-random samples in unit hypercube using Sobol sequence."""
-        sampler = Sobol(
-            d=self.space.bounds.shape[0],
-            scramble=True,
-            seed=int(self.rng.integers(1_000_000_000)),
-        )
-        return sampler.random(n)
+        dim = self.space.bounds.shape[0]
+        bounds = torch.stack([
+            torch.zeros(dim, dtype=torch.double),
+            torch.ones(dim, dtype=torch.double)
+        ])
+
+        k = len(self.X_sample) if self.X_sample is not None else 0
+        total_samples = k + n
+
+        samples_tensor = draw_sobol_samples(
+            bounds=bounds,
+            n=1,
+            q=total_samples,
+            seed=self.random_state
+        ).squeeze(0)
+
+        selected_samples = samples_tensor[-n:]
+        return selected_samples.cpu().numpy()
 
     def _optimize_acquisition(
         self,
