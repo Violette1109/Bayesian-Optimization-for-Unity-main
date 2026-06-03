@@ -23,6 +23,8 @@ from scipy.stats import norm
 from scipy.stats.qmc import Sobol
 from sklearn.gaussian_process import GaussianProcessRegressor
 from sklearn.gaussian_process.kernels import ConstantKernel as C, Matern, WhiteKernel
+import torch
+from botorch.utils.sampling import draw_sobol_samples
 
 from loguru import logger
 from .utils.result import ProposeLocationResult
@@ -536,9 +538,6 @@ class BayesOpt:
 
     def _sobol_sample(self, n: int) -> np.ndarray:
         """Generate n quasi-random samples in unit hypercube using Sobol sequence."""
-        import torch
-        from botorch.utils.sampling import draw_sobol_samples
-
         dim = self.space.bounds.shape[0]
         bounds = torch.stack([
             torch.zeros(dim, dtype=torch.double),
