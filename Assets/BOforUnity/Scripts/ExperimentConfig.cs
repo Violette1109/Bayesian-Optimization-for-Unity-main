@@ -276,12 +276,12 @@ public class ExperimentConfig : MonoBehaviour
     {
         boManager.numSamplingIterations = 5;
         boManager.numOptimizationIterations = 0;
-        boManager.enableFinalDesignRound = false;
+        boManager.enableFinalDesignRound = true;
         boManager.warmStart = false;
         boManager.useInitialDataAsPrior = false;
         _warmStart = false;
         SetWarmStartToggleSilently(false);
-        ClearBaselineDataPaths();
+        UpdateBaselineDataPaths();
         SyncConditionManagerFinalDesignRound();
     }
 
