@@ -182,7 +182,7 @@ namespace BOforUnity.Examples
 
         public void OptimizationStart()
         {
-            if (conditionMode == ConditionMode.AdaptiveBo)
+            if (conditionMode == ConditionMode.AdaptiveBo && !_baselineBlockActive)
             {
                 ResolveIterationSettingsSource()?.OptimizationStart();
                 return;
