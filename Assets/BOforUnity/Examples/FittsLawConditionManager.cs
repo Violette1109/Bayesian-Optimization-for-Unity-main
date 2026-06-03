@@ -64,7 +64,7 @@ namespace BOforUnity.Examples
             get
             {
                 BoForUnityManager source = ResolveIterationSettingsSource();
-                return conditionMode == ConditionMode.AdaptiveBo &&
+                return conditionMode == ConditionMode.AdaptiveBo && !_baselineBlockActive &&
                        source != null &&
                        source.UsesExternalIterationSignal;
             }
@@ -75,7 +75,7 @@ namespace BOforUnity.Examples
             get
             {
                 BoForUnityManager source = ResolveIterationSettingsSource();
-                return conditionMode == ConditionMode.AdaptiveBo &&
+                return conditionMode == ConditionMode.AdaptiveBo && !_baselineBlockActive &&
                        source != null &&
                        source.EnablePriorRatingHints;
             }
@@ -86,7 +86,7 @@ namespace BOforUnity.Examples
             get
             {
                 BoForUnityManager source = ResolveIterationSettingsSource();
-                return conditionMode == ConditionMode.AdaptiveBo && source != null
+                return conditionMode == ConditionMode.AdaptiveBo && !_baselineBlockActive && source != null
                     ? source.PriorRatingHintAlpha
                     : 0f;
             }
@@ -97,7 +97,7 @@ namespace BOforUnity.Examples
             get
             {
                 BoForUnityManager source = ResolveIterationSettingsSource();
-                return conditionMode == ConditionMode.AdaptiveBo && source != null
+                return conditionMode == ConditionMode.AdaptiveBo && !_baselineBlockActive && source != null
                     ? source.UserId
                     : ResolveContextValue(userId);
             }
@@ -108,7 +108,7 @@ namespace BOforUnity.Examples
             get
             {
                 BoForUnityManager source = ResolveIterationSettingsSource();
-                return conditionMode == ConditionMode.AdaptiveBo && source != null
+                return conditionMode == ConditionMode.AdaptiveBo && !_baselineBlockActive && source != null
                     ? source.ConditionId
                     : ResolveContextValue(GetConfiguredConditionId());
             }
@@ -119,24 +119,24 @@ namespace BOforUnity.Examples
             get
             {
                 BoForUnityManager source = ResolveIterationSettingsSource();
-                return conditionMode == ConditionMode.AdaptiveBo && source != null
+                return conditionMode == ConditionMode.AdaptiveBo && !_baselineBlockActive && source != null
                     ? source.GroupId
                     : ResolveContextValue(groupId);
             }
         }
 
         public string ScaleForQuestionnaireCsv =>
-            conditionMode == ConditionMode.AdaptiveBo && iterationSettingsSource != null
+            conditionMode == ConditionMode.AdaptiveBo && !_baselineBlockActive && iterationSettingsSource != null
                 ? iterationSettingsSource.ScaleForQuestionnaireCsv
                 : ResolveContextValue(GetConfiguredConditionId());
 
         public string SamplingRoundsForQuestionnaireCsv =>
-            conditionMode == ConditionMode.AdaptiveBo && iterationSettingsSource != null
+            conditionMode == ConditionMode.AdaptiveBo && !_baselineBlockActive && iterationSettingsSource != null
                 ? iterationSettingsSource.SamplingRoundsForQuestionnaireCsv
                 : ResolveContextValue(groupId);
 
         public bool WarmStartForQuestionnaireCsv =>
-            conditionMode == ConditionMode.AdaptiveBo &&
+            conditionMode == ConditionMode.AdaptiveBo && !_baselineBlockActive &&
             iterationSettingsSource != null &&
             iterationSettingsSource.WarmStartForQuestionnaireCsv;
 
@@ -216,7 +216,7 @@ namespace BOforUnity.Examples
 
         public void StartConfiguredCondition()
         {
-            if (conditionMode == ConditionMode.AdaptiveBo || _started || _advanceQueued)
+            if ((conditionMode == ConditionMode.AdaptiveBo && !_baselineBlockActive) || _started || _advanceQueued)
                 return;
             
             // 🟢 核心修正：允許在正式啟動時重新鎖定正確的 User ID 資料夾
@@ -246,7 +246,7 @@ namespace BOforUnity.Examples
 
             baselineCsvUserId = ResolveContextValue(baselineUserId);
             baselineCsvScale = Mathf.Max(1, scale);
-            conditionMode = ConditionMode.Random;
+            conditionMode = ConditionMode.AdaptiveBo;
             setConditionIdFromMode = false;
             userId = baselineCsvUserId;
             conditionId = baselineCsvScale.ToString(CultureInfo.InvariantCulture);
@@ -288,7 +288,7 @@ namespace BOforUnity.Examples
 
         public void RequestNextIteration()
         {
-            if (conditionMode == ConditionMode.AdaptiveBo)
+            if (conditionMode == ConditionMode.AdaptiveBo && !_baselineBlockActive)
             {
                 ResolveIterationSettingsSource()?.RequestNextIteration();
                 return;
@@ -302,7 +302,7 @@ namespace BOforUnity.Examples
 
         public void SubmitQuestionnaireObjectiveValue(string headerName, string rawValue, string sourceName)
         {
-            if (conditionMode == ConditionMode.AdaptiveBo)
+            if (conditionMode == ConditionMode.AdaptiveBo && !_baselineBlockActive)
             {
                 ResolveIterationSettingsSource()?.SubmitQuestionnaireObjectiveValue(headerName, rawValue, sourceName);
                 return;
@@ -355,7 +355,7 @@ namespace BOforUnity.Examples
 
         public void SetPriorSliderRatingHint(string questionKey, float sliderValue)
         {
-            if (conditionMode == ConditionMode.AdaptiveBo)
+            if (conditionMode == ConditionMode.AdaptiveBo && !_baselineBlockActive)
                 ResolveIterationSettingsSource()?.SetPriorSliderRatingHint(questionKey, sliderValue);
         }
 
@@ -363,20 +363,20 @@ namespace BOforUnity.Examples
         {
             sliderValue = 0f;
             BoForUnityManager source = ResolveIterationSettingsSource();
-            return conditionMode == ConditionMode.AdaptiveBo &&
+            return conditionMode == ConditionMode.AdaptiveBo && !_baselineBlockActive &&
                    source != null &&
                    source.TryGetPriorSliderRatingHint(questionKey, out sliderValue);
         }
 
         public void RemovePriorSliderRatingHint(string questionKey)
         {
-            if (conditionMode == ConditionMode.AdaptiveBo)
+            if (conditionMode == ConditionMode.AdaptiveBo && !_baselineBlockActive)
                 ResolveIterationSettingsSource()?.RemovePriorSliderRatingHint(questionKey);
         }
 
         public void SetPriorLinearScaleRatingHint(string questionKey, string answerValue)
         {
-            if (conditionMode == ConditionMode.AdaptiveBo)
+            if (conditionMode == ConditionMode.AdaptiveBo && !_baselineBlockActive)
                 ResolveIterationSettingsSource()?.SetPriorLinearScaleRatingHint(questionKey, answerValue);
         }
 
@@ -384,14 +384,14 @@ namespace BOforUnity.Examples
         {
             answerValue = null;
             BoForUnityManager source = ResolveIterationSettingsSource();
-            return conditionMode == ConditionMode.AdaptiveBo &&
+            return conditionMode == ConditionMode.AdaptiveBo && !_baselineBlockActive &&
                    source != null &&
                    source.TryGetPriorLinearScaleRatingHint(questionKey, out answerValue);
         }
 
         public void RemovePriorLinearScaleRatingHint(string questionKey)
         {
-            if (conditionMode == ConditionMode.AdaptiveBo)
+            if (conditionMode == ConditionMode.AdaptiveBo && !_baselineBlockActive)
                 ResolveIterationSettingsSource()?.RemovePriorLinearScaleRatingHint(questionKey);
         }
 
@@ -480,7 +480,7 @@ namespace BOforUnity.Examples
         private void ApplyConditionConfiguration()
         {
             BoForUnityManager source = ResolveIterationSettingsSource();
-            if (conditionMode == ConditionMode.AdaptiveBo)
+            if (conditionMode == ConditionMode.AdaptiveBo && !_baselineBlockActive)
             {
                 if (fittsLawTask != null)
                 {
@@ -523,7 +523,7 @@ namespace BOforUnity.Examples
             fittsLawTask.readDesignParametersFromBo = false;
             fittsLawTask.writeObjectivesToBo = false;
             fittsLawTask.writeDetailedAppLogCsv = true;
-            fittsLawTask.randomizeDesignParametersOnBegin = conditionMode == ConditionMode.Random;
+            fittsLawTask.randomizeDesignParametersOnBegin = conditionMode == ConditionMode.Random || _baselineBlockActive;
         }
 
         private void SyncAdaptiveConditionIdToSource()
