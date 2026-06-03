@@ -2038,12 +2038,38 @@ namespace BOforUnity.Examples
         private static void AppendSemicolonCsvRow(string path, string[] headers, string[] values)
         {
             bool writeHeader = !File.Exists(path) || new FileInfo(path).Length == 0;
+            string prefix = string.Empty;
+            if (!writeHeader)
+            {
+                try
+                {
+                    using (var fs = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite))
+                    {
+                        if (fs.Length > 0)
+                        {
+                            fs.Seek(-1, SeekOrigin.End);
+                            int last = fs.ReadByte();
+                            if (last != '\n' && last != '\r')
+                                prefix = Environment.NewLine;
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Debug.LogWarning($"Could not inspect CSV newline state for {path}: {ex.Message}");
+                }
+            }
+
             using (var writer = new StreamWriter(path, true, Encoding.UTF8))
             {
+                if (!string.IsNullOrEmpty(prefix))
+                    writer.Write(prefix);
+
                 if (writeHeader)
                     writer.WriteLine(BuildSemicolonCsvLine(headers));
 
                 writer.WriteLine(BuildSemicolonCsvLine(values));
+                writer.Flush();
             }
         }
 
