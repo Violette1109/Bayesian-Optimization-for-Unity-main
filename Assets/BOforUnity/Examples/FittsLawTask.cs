@@ -2069,7 +2069,6 @@ namespace BOforUnity.Examples
                     writer.WriteLine(BuildSemicolonCsvLine(headers));
 
                 writer.WriteLine(BuildSemicolonCsvLine(values));
-                writer.Flush();
             }
         }
 

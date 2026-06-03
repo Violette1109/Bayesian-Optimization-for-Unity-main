@@ -1093,7 +1093,6 @@ namespace BOforUnity.Examples
                     writer.Write(prefix);
 
                 writer.WriteLine(BuildSemicolonCsvLine(values));
-                writer.Flush();
             }
         }
 
