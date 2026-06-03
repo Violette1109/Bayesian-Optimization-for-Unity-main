@@ -49,6 +49,11 @@ namespace BOforUnity.Examples
         private readonly Dictionary<string, List<float>> _currentObjectiveValues =
             new Dictionary<string, List<float>>(StringComparer.OrdinalIgnoreCase);
 
+        // UTF-8 without a BOM: keeps the baseline CSVs byte-clean and consistent with the rest of
+        // the pipeline. bo.py matches warm-start columns by header name, so a leading BOM on the
+        // first header must not be written.
+        private static readonly Encoding Utf8NoBom = new UTF8Encoding(false);
+
         private int _currentRound;
         private int _baseRoundCount;
         private int _totalRoundCount;
@@ -241,8 +246,14 @@ namespace BOforUnity.Examples
 
             if (fittsLawTask != null)
             {
-                // Sequence of operations is important: First enable deterministic seeding, then reset the sample index.
-                // This ensures the next round of baseline block starts precisely at sample index 0 with deterministic seeding active.
+                // Baseline blocks replay a fixed botorch-Sobol design set (loaded eagerly so a
+                // missing file surfaces now). Each scale block indexes the same Sobol rows by
+                // round, so all three scales present the identical 10 designs.
+                fittsLawTask.SetUseBaselineSobolDesigns(true);
+
+                // Kept as a safety net: if the Sobol file is missing the task falls back to the
+                // deterministic seeded random sequence. Reset the index first so that fallback,
+                // like the Sobol path, restarts from the beginning for every block.
                 fittsLawTask.useDeterministicRandomDesignSeed = true;
                 fittsLawTask.ResetRandomDesignSampleIndex();
             }
@@ -492,6 +503,7 @@ namespace BOforUnity.Examples
             {
                 if (fittsLawTask != null)
                 {
+                    fittsLawTask.useBaselineSobolDesigns = false;
                     fittsLawTask.SetRuntimeDesignParameterSource(source);
                     fittsLawTask.startOnAwake = true;
                     fittsLawTask.ensureBoManagerInScene = true;
@@ -532,6 +544,9 @@ namespace BOforUnity.Examples
             fittsLawTask.writeObjectivesToBo = false;
             fittsLawTask.writeDetailedAppLogCsv = true;
             fittsLawTask.randomizeDesignParametersOnBegin = conditionMode == ConditionMode.Random || _baselineBlockActive;
+            // Sobol designs are a baseline-only concept; the standalone Random condition keeps
+            // sampling a fresh random design each round.
+            fittsLawTask.useBaselineSobolDesigns = _baselineBlockActive;
             if (_baselineBlockActive)
             {
                 // Ensure deterministic random seed remains active across subsequent task sync updates in baseline blocks
@@ -763,11 +778,11 @@ namespace BOforUnity.Examples
             File.WriteAllText(
                 GetBaselineParametersCsvPath(),
                 BuildSemicolonCsvLine(parameterHeaders) + Environment.NewLine,
-                Encoding.UTF8);
+                Utf8NoBom);
             File.WriteAllText(
                 GetBaselineObjectivesCsvPath(),
                 BuildSemicolonCsvLine(objectiveHeaders) + Environment.NewLine,
-                Encoding.UTF8);
+                Utf8NoBom);
         }
 
         private void AppendBaselineCsvRow()
@@ -825,6 +840,9 @@ namespace BOforUnity.Examples
             _baselineBlockActive = false;
             _started = false;
             _advanceQueued = false;
+
+            if (fittsLawTask != null)
+                fittsLawTask.useBaselineSobolDesigns = false;
 
             foreach (MonoBehaviour component in Resources.FindObjectsOfTypeAll<MonoBehaviour>())
             {
@@ -1100,7 +1118,7 @@ namespace BOforUnity.Examples
                 }
             }
 
-            using (var writer = new StreamWriter(path, true, Encoding.UTF8))
+            using (var writer = new StreamWriter(path, true, Utf8NoBom))
             {
                 if (!string.IsNullOrEmpty(prefix))
                     writer.Write(prefix);

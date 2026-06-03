@@ -322,6 +322,30 @@ For static and random runs, configure `UserID` and `GroupID` on `FittsLawConditi
 
 For static and random conditions, `FittsLawConditionManager` reads the same sampling/optimization iteration counts as the BO setup and runs one additional local `finaldesign` round when `includeFinalDesignRound` is enabled. This keeps the baseline conditions aligned with the adaptive BO condition while keeping the optimizer inactive. For example, with `3` sampling iterations and `2` optimization iterations, static/random run `5 + 1 finaldesign` task rounds.
 
+##### Baseline scale phase (Likert 5 / 20 / 100)
+
+`ExperimentConfig` drives a baseline phase that runs three blocks — one per questionnaire scale (`5`, `20`, `100`) — of `10` rounds each, writing `baseline_<scale>_params.csv` / `baseline_<scale>_objectives.csv` under `StreamingAssets/BOData/InitData/<user>/`. The Python/BO runtime is disabled during this phase.
+
+The order of the three scale blocks is counterbalanced deterministically by participant ID (`ExperimentConfig.baselineScaleOrderMode`):
+
+| Mode | Behavior |
+|---|---|
+| `Full counterbalance` (default) | Assigns one of all `3! = 6` orders by participant ID. Cell counts balance every 6 participants and each scale appears equally in each position. |
+| `Cyclic Latin square` | Assigns one of 3 rotations; each scale appears once per position. Cell counts balance every 3 participants. |
+| `Random per participant` | Legacy unseeded shuffle (not balanced). |
+
+The same participant ID always yields the same order. Sequential integer IDs (`1, 2, 3, …`) give exact balance; `P01`/`subject_12`-style IDs are mapped via their trailing digits, and any other string via a stable hash (deterministic, but balance then depends on the ID set).
+
+The `10` designs are **identical across all three scale blocks** so that ratings differ only by scale, not by stimulus. They are a deterministic [botorch](https://botorch.org/) Sobol design (the same low-discrepancy sequence `bo.py` uses for initial sampling), precomputed once in the unit cube and committed as `Assets/StreamingAssets/BOData/baseline_sobol_unit.csv`. At runtime `FittsLawTask` reads each row **by round index** and denormalizes the columns to the live `BoForUnityManager` parameter bounds, so every block replays the same designs and the sequence cannot drift across blocks or task restarts.
+
+To regenerate the design set (for example after changing the design-parameter set, bounds order, count, or the baseline round count), run:
+
+```bash
+python Assets/StreamingAssets/BOData/generate_baseline_sobol.py --n 10 --seed 3
+```
+
+The CSV header must list the design-parameter keys in the same order as the `BoForUnityManager.parameters` list. If the file is missing or unreadable, the task logs an error and falls back to a deterministic seeded-random design per block.
+
 #### 6.2.2 Design Parameters
 
 The scene is configured as a BO example with five scalar design parameters:
