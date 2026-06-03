@@ -11,7 +11,7 @@ LIKERT_MAX = int(sys.argv[1]) if len(sys.argv) > 1 else 5
 
 # ── 設定路徑（動態向外追溯，確保路徑在任何 Mac 目錄下都正確） ──
 current_script_path = pathlib.Path(__file__).resolve()
-+OUTPUT_DIR = str(pathlib.Path(__file__).resolve().parent / "InitData")
+OUTPUT_DIR = str(pathlib.Path(__file__).resolve().parent / "InitData")
 
 PARAMS_FILE = os.path.join(OUTPUT_DIR, "warmstart_params.csv")
 OBJECTIVES_FILE = os.path.join(OUTPUT_DIR, "warmstart_objectives.csv")
@@ -140,7 +140,7 @@ def validate_and_write(data):
     print(f"   {OBJECTIVES_FILE}")
 
 def main():
-    raw = call_qwen(PROMPT)
+    raw = call_llm(PROMPT)
     data = extract_json(raw)
     
     # 🟢 核心安全防護：如果模型生成的資料是 Null、或者長度對不齊，直接無縫切換
