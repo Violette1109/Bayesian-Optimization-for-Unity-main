@@ -180,10 +180,32 @@ namespace BOforUnity.Examples
             }
         }
 
+        private void Update()
+        {
+            if (!_baselineBlockActive || conditionMode != ConditionMode.AdaptiveBo)
+                return;
+
+            BoForUnityManager source = ResolveIterationSettingsSource();
+            if (source == null)
+                return;
+
+            _currentRound = Mathf.Max(_currentRound, Mathf.Max(0, source.currentIteration));
+            if (source.optimizationFinished || source.currentIteration > source.totalIterations)
+                NotifyBaselineBlockCompleted();
+        }
+
         public void OptimizationStart()
         {
             if (conditionMode == ConditionMode.AdaptiveBo)
             {
+                if (captureBaselineCsv && _baselineBlockActive)
+                {
+                    BoForUnityManager source = ResolveIterationSettingsSource();
+                    if (source != null)
+                        _currentRound = Mathf.Max(_currentRound, Mathf.Max(1, source.currentIteration));
+                    AppendBaselineCsvRow();
+                }
+
                 ResolveIterationSettingsSource()?.OptimizationStart();
                 return;
             }
@@ -216,7 +238,7 @@ namespace BOforUnity.Examples
 
         public void StartConfiguredCondition()
         {
-            if (conditionMode == ConditionMode.AdaptiveBo || _started || _advanceQueued)
+            if ((conditionMode == ConditionMode.AdaptiveBo && !_baselineBlockActive) || _started || _advanceQueued)
                 return;
             
             // 🟢 核心修正：允許在正式啟動時重新鎖定正確的 User ID 資料夾
@@ -229,6 +251,13 @@ namespace BOforUnity.Examples
                 _baselineBlockCompletionNotified = false;
                 _lastBaselineCsvRoundWritten = 0;
                 _currentObjectiveValues.Clear();
+            }
+
+            if (conditionMode == ConditionMode.AdaptiveBo)
+            {
+                _started = true;
+                ResolveIterationSettingsSource()?.RequestNextIteration();
+                return;
             }
 
             _advanceQueued = true;
@@ -246,14 +275,14 @@ namespace BOforUnity.Examples
 
             baselineCsvUserId = ResolveContextValue(baselineUserId);
             baselineCsvScale = Mathf.Max(1, scale);
-            conditionMode = ConditionMode.Random;
+            conditionMode = ConditionMode.AdaptiveBo;
             setConditionIdFromMode = false;
             userId = baselineCsvUserId;
             conditionId = baselineCsvScale.ToString(CultureInfo.InvariantCulture);
             groupId = ResolveContextValue(baselineCsvGroupId);
             readIterationsFromSource = false;
-            samplingIterations = Mathf.Max(1, rounds);
-            optimizationIterations = 0;
+            samplingIterations = 1;
+            optimizationIterations = Mathf.Max(0, rounds - 1);
             includeFinalDesignRound = false;
 
             _currentRound = 0;
@@ -271,8 +300,8 @@ namespace BOforUnity.Examples
                 source.conditionId = conditionId;
                 source.groupId = groupId;
                 source.numSamplingIterations = samplingIterations;
-                source.numOptimizationIterations = 0;
-                source.totalIterations = samplingIterations;
+                source.numOptimizationIterations = optimizationIterations;
+                source.totalIterations = samplingIterations + optimizationIterations;
                 source.enableFinalDesignRound = false;
                 source.warmStart = false;
                 source.useInitialDataAsPrior = false;
