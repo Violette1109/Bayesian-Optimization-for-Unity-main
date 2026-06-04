@@ -215,6 +215,7 @@ namespace BOforUnity.Examples
             else if (!_baselineBlockActive)
             {
                 readIterationsFromSource = true;
+                includeFinalDesignRound = true;
                 ResetRoundProgress();
             }
             ResolveReferences();
@@ -248,16 +249,10 @@ namespace BOforUnity.Examples
 
             if (fittsLawTask != null)
             {
-                // Baseline blocks replay a fixed botorch-Sobol design set (loaded eagerly so a
-                // missing file surfaces now). Each scale block indexes the same Sobol rows by
-                // round, so all three scales present the identical 10 designs.
                 fittsLawTask.SetUseBaselineSobolDesigns(true);
-
-                // Kept as a safety net: if the Sobol file is missing the task falls back to the
-                // deterministic seeded random sequence. Reset the index first so that fallback,
-                // like the Sobol path, restarts from the beginning for every block.
                 fittsLawTask.useDeterministicRandomDesignSeed = true;
                 fittsLawTask.ResetRandomDesignSampleIndex();
+                fittsLawTask.ResetBestDesignTracking();
             }
 
             captureBaselineCsv = true;

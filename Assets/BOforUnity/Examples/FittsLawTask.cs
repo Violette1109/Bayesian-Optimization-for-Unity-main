@@ -231,6 +231,23 @@ namespace BOforUnity.Examples
 		private bool _manualLogIsRandom;
 		private bool _manualLogIsOptimizedIntroduction;
 
+        private bool _hasBestDesignTracked = false;
+        private float _bestTaskCompletionTimeMs = float.MaxValue;
+        private float _bestXFontSizePixels;
+        private float _bestCircleSizePixels;
+        private float _bestCircleDistancePixels;
+        private float _bestButtonHue;
+        private float _bestButtonSaturation;
+
+        /// <summary>
+        /// Resets the tracking metrics at the start of a condition block.
+        /// </summary>
+        public void ResetBestDesignTracking()
+        {
+            _hasBestDesignTracked = false;
+            _bestTaskCompletionTimeMs = float.MaxValue;
+        }
+
         private void Awake()
         {
             if (ensureBoManagerInScene)
@@ -314,21 +331,37 @@ namespace BOforUnity.Examples
         {
             _autoStartGeneration++;
             ClearGeneratedUi();
-            if (randomizeDesignParametersOnBegin)
+
+            // Determine the current phase context safely
+            string currentPhase = _manualLogContextActive ? _manualLogPhase : GetBoPhase(GetRuntimeDesignParameterSource());
+
+            // --- OVERRIDE IF FINAL DESIGN ---
+            if (currentPhase == "finaldesign" && _hasBestDesignTracked)
             {
-                // Baseline blocks replay a fixed botorch-Sobol design per round; everything
-                // else (e.g. the Random condition) keeps using a freshly sampled design.
-                if (!(useBaselineSobolDesigns && TryApplyBaselineSobolDesignForCurrentRound()))
-                    ApplyRandomDesignParameters();
+                Debug.Log($"[FinalRound] Intercepted Random/Baseline Final Round. Applying Best Design Found ({_bestTaskCompletionTimeMs:0.0} ms).");
+                xFontSizePixels = _bestXFontSizePixels;
+                circleSizePixels = _bestCircleSizePixels;
+                circleDistancePixels = _bestCircleDistancePixels;
+                buttonHue = _bestButtonHue;
+                buttonSaturation = _bestButtonSaturation;
+                
+                SyncRuntimeDesignParameterSourceWithCurrentDesign();
             }
             else
             {
-                ApplyBoDesignParameters();
-                if (!readDesignParametersFromBo)
-                    SyncRuntimeDesignParameterSourceWithCurrentDesign();
+                // Standard execution fallback path for baseline and random exploration rounds
+                if (randomizeDesignParametersOnBegin)
+                {
+                    if (!(useBaselineSobolDesigns && TryApplyBaselineSobolDesignForCurrentRound()))
+                        ApplyRandomDesignParameters();
+                }
+                else
+                {
+                    ApplyBoDesignParameters();
+                    if (!readDesignParametersFromBo)
+                        SyncRuntimeDesignParameterSourceWithCurrentDesign();
+                }
             }
-            highlightedTargetColor = GetOptimizedButtonColor();
-
             EnsureEventSystem();
             CreateCanvas();
             CreateTargets();
@@ -1585,6 +1618,19 @@ namespace BOforUnity.Examples
             _taskComplete = true;
             RestoreCursor();
             ComputeDesignObjectives();
+
+            string currentPhase = GetLogPhase(GetRuntimeDesignParameterSource());
+            if (currentPhase != "finaldesign" && taskCompletionTimeMs < _bestTaskCompletionTimeMs && taskCompletionTimeMs > 0f)
+            {
+                _bestTaskCompletionTimeMs = taskCompletionTimeMs;
+                _bestXFontSizePixels = xFontSizePixels;
+                _bestCircleSizePixels = circleSizePixels;
+                _bestCircleDistancePixels = circleDistancePixels;
+                _bestButtonHue = buttonHue;
+                _bestButtonSaturation = buttonSaturation;
+                _hasBestDesignTracked = true;
+                Debug.Log($"[Tracking] New best design recorded at round {GetLogIteration(GetRuntimeDesignParameterSource())}: {taskCompletionTimeMs:0.0} ms");
+            }
 
             for (int i = 0; i < _targetImages.Count; i++)
             {

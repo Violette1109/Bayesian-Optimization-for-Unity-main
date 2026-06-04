@@ -300,7 +300,7 @@ public class ExperimentConfig : MonoBehaviour
         boManager.numOptimizationIterations = Mathf.Max(0, optimizationRoundsForRandom);
         boManager.enableFinalDesignRound = true;  // final design round included for Random
         boManager.warmStart = false;
-        boManager.useInitialDataAsPrior = false;
+        boManager.useInitialDataAsPrior = true;
         _warmStart = false;
         SetWarmStartToggleSilently(false);
         UpdateBaselineDataPaths();
