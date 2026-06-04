@@ -727,9 +727,20 @@ namespace BOforUnity.Examples
 
         private void BeginNextRound()
         {
+            Debug.Log(
+            $"ROUND CHECK | current={_currentRound} " +
+            $"sampling={samplingIterations} " +
+            $"optimization={optimizationIterations} " +
+            $"includeFinal={includeFinalDesignRound} " +
+            $"base={_baseRoundCount} " +
+            $"total={_totalRoundCount}"
+            );
             RefreshIterationCounts();
             SyncContextToReferencedComponents();
 
+            Debug.Log(
+            $"FINISH CHECK | current={_currentRound} total={_totalRoundCount}"
+            );
             if (_currentRound >= _totalRoundCount)
             {
                 Debug.Log(
