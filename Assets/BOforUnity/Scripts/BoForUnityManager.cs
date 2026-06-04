@@ -92,7 +92,10 @@ namespace BOforUnity
         public string questionnaireScaleForCsv = "-1";
         public string questionnaireSamplingRoundsForCsv = "-1";
         public bool questionnaireRandomForCsv = false;
-        public bool questionnaireOptimisedForCsv = true;
+        // Single source of truth for the OptimizedIntroduction (Instructed) manipulation, set
+        // explicitly by ExperimentConfig. Defaults to false so an unconfigured run logs the
+        // conservative value consistently across all sinks (app log, BO logs, questionnaire).
+        public bool questionnaireOptimisedForCsv = false;
 
         public OptimizerBackend optimizerBackend = OptimizerBackend.BoTorch;
 
@@ -727,6 +730,22 @@ namespace BOforUnity
             {
                 _cachedExperimentConfig.ShowNextSectionButton();
             }
+        }
+
+        /// <summary>
+        /// Shows the end-of-condition "This condition has finished!" message and the Next Section
+        /// button. The Python BO loop already does this on termination (see CompleteLoop), but
+        /// conditions that run without the loop (Random/Static via FittsLawConditionManager, which
+        /// now include a final-design round) never reach that path — they call this instead.
+        /// Safe to call while this component is disabled; it only touches UI and notifies config.
+        /// </summary>
+        public void ShowConditionFinishedMessage(string message = null)
+        {
+            SetOptimizerStatePanelVisible(RequiresOptimizerPanelForOutputText());
+            SetLoadingVisible(false);
+            SetNextButtonVisible(false);
+            SetOutputText(string.IsNullOrWhiteSpace(message) ? "This condition has finished!" : message);
+            NotifyExperimentConfigConditionComplete();
         }
 
         private bool RequiresOptimizerPanelForReadyStateUi(bool forceManualAdvance = false)

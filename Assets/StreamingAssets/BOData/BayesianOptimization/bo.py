@@ -795,7 +795,9 @@ def main():
         WARM_START     = get_cfg_bool(cfg, "warmStart", default=False)
         USE_INITIAL_DATA_AS_PRIOR = get_cfg_bool(cfg, "useInitialDataAsPrior", default=False)
         RANDOM_ALLOCATION = get_cfg_bool(cfg, "random", default=False)
-        OPTIMIZED_INTRODUCTION = get_cfg_bool(cfg, "optimizedIntroduction", default=True)
+        # Default false to match the Unity-side single source of truth (BoForUnityManager
+        # .questionnaireOptimisedForCsv) and the other log sinks; Unity always sends this explicitly.
+        OPTIMIZED_INTRODUCTION = get_cfg_bool(cfg, "optimizedIntroduction", default=False)
         CSV_PATH_PARAMETERS = str(cfg.get("initialParametersDataPath") or "")
         CSV_PATH_OBJECTIVES = str(cfg.get("initialObjectivesDataPath") or "")
         WARM_START_OBJECTIVE_FORMAT = str(

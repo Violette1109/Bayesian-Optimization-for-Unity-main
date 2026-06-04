@@ -150,10 +150,12 @@ namespace BOforUnity.Examples
                 ? iterationSettingsSource.RandomForQuestionnaireCsv
                 : conditionMode == ConditionMode.Random;
 
+        // OptimizedIntroduction (Instructed vs Neutral) is an explicit manipulation set by
+        // ExperimentConfig on the BoForUnityManager; it is NOT implied by the condition mode.
+        // Forward that single source of truth, defaulting to false when no source is available
+        // (matching every other log sink) instead of guessing from conditionMode.
         public bool OptimisedForQuestionnaireCsv =>
-            iterationSettingsSource != null
-                ? iterationSettingsSource.OptimisedForQuestionnaireCsv
-                : conditionMode == ConditionMode.AdaptiveBo;
+            iterationSettingsSource != null && iterationSettingsSource.OptimisedForQuestionnaireCsv;
 
         private void Awake()
         {
@@ -748,6 +750,11 @@ namespace BOforUnity.Examples
                 );
                 if (_baselineBlockActive || captureBaselineCsv)
                     NotifyBaselineBlockCompleted();
+                else
+                    // Random/Static conditions run without the Python BO loop, so the loop's
+                    // end-of-condition UI never fires. Show the "This condition has finished!"
+                    // message + Next Section button here instead.
+                    ResolveIterationSettingsSource()?.ShowConditionFinishedMessage();
                 return;
             }
 
