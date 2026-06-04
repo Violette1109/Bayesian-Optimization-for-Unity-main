@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
 using UnityEngine.UI;
@@ -56,6 +57,24 @@ public class ExperimentConfig : MonoBehaviour
 
     [Header("Manager References")]
     public BoForUnityManager boManager;
+
+    public enum BaselineScaleOrderMode
+    {
+        [InspectorName("Full counterbalance (all 6 orders)")]
+        FullCounterbalance,
+        [InspectorName("Cyclic Latin square (3 orders)")]
+        LatinSquare,
+        [InspectorName("Random per participant (legacy)")]
+        RandomPerParticipant
+    }
+
+    [Header("Baseline Scale Counterbalancing")]
+    [Tooltip("How the order of the three baseline scale blocks (5/20/100) is chosen.\n" +
+             "Full counterbalance and Latin square assign a deterministic order by participant ID, so the same ID " +
+             "always gets the same order and orders balance across participants (full = every 6 participants, " +
+             "Latin = every 3). Random reproduces the legacy unseeded shuffle. Sequential integer IDs (1, 2, 3, ...) " +
+             "give exact balance.")]
+    public BaselineScaleOrderMode baselineScaleOrderMode = BaselineScaleOrderMode.FullCounterbalance;
 
     // 🟢 已改成通用的 MonoBehaviour 防止編譯紅字
     private MonoBehaviour _fittsLawConditionManager;
@@ -501,7 +520,7 @@ public class ExperimentConfig : MonoBehaviour
         _baselinePhaseStarted = true;
         _baselinePhaseCompleted = false;
         _baselineScaleIndex = 0;
-        _baselineScaleOrder = CreateShuffledBaselineScaleOrder();
+        _baselineScaleOrder = CreateBaselineScaleOrder();
 
         userIdPanel.SetActive(false);
         configPanel.SetActive(false);
@@ -519,7 +538,7 @@ public class ExperimentConfig : MonoBehaviour
     private void StartNextBaselineBlock()
     {
         if (_baselineScaleOrder == null || _baselineScaleOrder.Length == 0)
-            _baselineScaleOrder = CreateShuffledBaselineScaleOrder();
+            _baselineScaleOrder = CreateBaselineScaleOrder();
 
         if (_baselineScaleIndex >= _baselineScaleOrder.Length)
         {
@@ -716,7 +735,28 @@ public class ExperimentConfig : MonoBehaviour
             boManager.pythonStarter.enabled = false;
     }
 
-    private static int[] CreateShuffledBaselineScaleOrder()
+    private int[] CreateBaselineScaleOrder()
+    {
+        if (baselineScaleOrderMode == BaselineScaleOrderMode.RandomPerParticipant)
+            return CreateRandomBaselineScaleOrder();
+
+        List<int[]> orders = baselineScaleOrderMode == BaselineScaleOrderMode.LatinSquare
+            ? GetCyclicScaleOrderings(BaselineScales)
+            : GetAllScaleOrderings(BaselineScales);
+
+        if (orders == null || orders.Count == 0)
+            return (int[])BaselineScales.Clone();
+
+        int idx = ResolveParticipantOrderIndex(_userId, orders.Count);
+        int[] chosen = (int[])orders[idx].Clone();
+        Debug.Log(
+            $"[ExperimentConfig] Baseline scale order for user '{_userId}': {FormatScaleOrder(chosen)} " +
+            $"(mode={baselineScaleOrderMode}, order {idx + 1}/{orders.Count}).");
+        return chosen;
+    }
+
+    // Legacy behavior: an independent unseeded random order per run (not balanced across participants).
+    private static int[] CreateRandomBaselineScaleOrder()
     {
         int[] order = (int[])BaselineScales.Clone();
         for (int i = order.Length - 1; i > 0; i--)
@@ -728,6 +768,112 @@ public class ExperimentConfig : MonoBehaviour
         }
 
         return order;
+    }
+
+    // Maps a participant ID to a stable order index. Sequential integer IDs (1, 2, 3, ...) rotate
+    // through every ordering and therefore balance exactly; "P01"/"subject_12"-style IDs use their
+    // trailing digits; anything else uses a stable hash (still deterministic per ID, but balance
+    // then depends on the ID distribution).
+    private static int ResolveParticipantOrderIndex(string userId, int orderCount)
+    {
+        if (orderCount <= 1)
+            return 0;
+
+        long key = TryGetParticipantOrdinal(userId, out long ordinal)
+            ? ordinal
+            : StableStringHash(userId);
+
+        return (int)(((key % orderCount) + orderCount) % orderCount);
+    }
+
+    private static bool TryGetParticipantOrdinal(string userId, out long value)
+    {
+        value = 0;
+        if (string.IsNullOrEmpty(userId))
+            return false;
+
+        string trimmed = userId.Trim();
+        if (long.TryParse(trimmed, out value))
+            return true;
+
+        // Fall back to the last contiguous run of digits, e.g. "P01" -> 1, "subject_12" -> 12.
+        int end = -1;
+        int start = -1;
+        for (int i = trimmed.Length - 1; i >= 0; i--)
+        {
+            if (char.IsDigit(trimmed[i]))
+            {
+                if (end < 0)
+                    end = i;
+                start = i;
+            }
+            else if (end >= 0)
+            {
+                break;
+            }
+        }
+
+        return end >= 0 && long.TryParse(trimmed.Substring(start, end - start + 1), out value);
+    }
+
+    // FNV-1a (32-bit): deterministic across platforms and runs, unlike string.GetHashCode.
+    private static long StableStringHash(string value)
+    {
+        unchecked
+        {
+            uint hash = 2166136261u;
+            string s = value ?? string.Empty;
+            for (int i = 0; i < s.Length; i++)
+            {
+                hash ^= s[i];
+                hash *= 16777619u;
+            }
+
+            return hash;
+        }
+    }
+
+    // All n! orderings, in a deterministic (lexicographic-by-position) sequence.
+    private static List<int[]> GetAllScaleOrderings(int[] items)
+    {
+        var result = new List<int[]>();
+        PermuteScaleOrderings(new List<int>(items), new List<int>(), result);
+        return result;
+    }
+
+    private static void PermuteScaleOrderings(List<int> remaining, List<int> current, List<int[]> result)
+    {
+        if (remaining.Count == 0)
+        {
+            result.Add(current.ToArray());
+            return;
+        }
+
+        for (int i = 0; i < remaining.Count; i++)
+        {
+            int picked = remaining[i];
+            var nextRemaining = new List<int>(remaining);
+            nextRemaining.RemoveAt(i);
+            current.Add(picked);
+            PermuteScaleOrderings(nextRemaining, current, result);
+            current.RemoveAt(current.Count - 1);
+        }
+    }
+
+    // Cyclic Latin square: n rotations so each scale appears once in each position.
+    private static List<int[]> GetCyclicScaleOrderings(int[] items)
+    {
+        var result = new List<int[]>();
+        int n = items.Length;
+        for (int shift = 0; shift < n; shift++)
+        {
+            int[] order = new int[n];
+            for (int i = 0; i < n; i++)
+                order[i] = items[(i + shift) % n];
+            result.Add(order);
+        }
+
+        return result;
     }
 
     private static string FormatScaleOrder(int[] order)
