@@ -55,6 +55,9 @@ public class ExperimentConfig : MonoBehaviour
     [Tooltip("當選擇 15 輪 Sampling 時，對應的 Optimization 輪數")]
     public int optimizationRoundsFor15 = 0;
 
+    [Tooltip("當選擇 random 輪 Sampling 時，對應的 Optimization 輪數")]
+    public int optimizationRoundsForRandom = 0;
+
     [Header("Manager References")]
     public BoForUnityManager boManager;
 
@@ -294,14 +297,14 @@ public class ExperimentConfig : MonoBehaviour
     private void ConfigureRandomMode()
     {
         boManager.numSamplingIterations = 5;
-        boManager.numOptimizationIterations = 0;
-        boManager.enableFinalDesignRound = true;
+        boManager.numOptimizationIterations = Mathf.Max(0, optimizationRoundsForRandom);
+        boManager.enableFinalDesignRound = true;  // final design round included for Random
         boManager.warmStart = false;
         boManager.useInitialDataAsPrior = false;
         _warmStart = false;
         SetWarmStartToggleSilently(false);
         UpdateBaselineDataPaths();
-        SyncConditionManagerFinalDesignRound();
+        SyncConditionManagerFinalDesignRound();   // FIX: was missing — syncs includeFinalDesignRound to FittsLawConditionManager
     }
 
     private void SetWarmStartToggleSilently(bool isOn)
