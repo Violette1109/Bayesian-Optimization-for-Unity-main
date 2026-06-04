@@ -405,8 +405,15 @@ def generate_initial_data(conn, n_samples, start_iteration=0):
         with open(obs_csv, 'w', newline='') as f:
             csv.writer(f, delimiter=';').writerow(header)
 
-    train_x = draw_sobol_samples(bounds=problem_bounds, n=1, q=n_samples, seed=SEED).squeeze(0)
-    print("Initial Sobol X in [0,1]:", train_x, flush=True)
+    # Continue the Sobol sequence past points already in the training set (e.g. the baseline
+    # designs loaded as prior) so sampling adds NEW space-filling designs instead of repeating
+    # the first points. The Sobol sequence is nested, so drawing (skip + n_samples) points and
+    # dropping the first `skip` yields points skip+1..skip+n_samples.
+    skip = int(start_iteration)
+    train_x = draw_sobol_samples(
+        bounds=problem_bounds, n=1, q=skip + n_samples, seed=SEED
+    ).squeeze(0)[skip:]
+    print(f"Initial Sobol X in [0,1] (continuation skip={skip}):", train_x, flush=True)
 
     train_obj = []
     best_so_far = -1e9

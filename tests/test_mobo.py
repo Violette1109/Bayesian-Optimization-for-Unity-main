@@ -753,6 +753,41 @@ class MoboTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             mobo.generate_initial_data(conn=None, n_samples=0)
 
+    def test_generate_initial_data_continues_sobol_past_prior(self):
+        # Regression: sampling rounds that follow loaded prior/baseline data must add NEW Sobol
+        # points (a continuation of the sequence), not repeat the first `start_iteration` designs.
+        mobo = load_mobo_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            mobo.PROJECT_PATH = tmp
+            mobo.USER_ID, mobo.CONDITION_ID, mobo.GROUP_ID = "u", "c", "g"
+            mobo.RANDOM_ALLOCATION = False
+            mobo.OPTIMIZED_INTRODUCTION = True
+            mobo.PROBLEM_DIM = 2
+            mobo.NUM_OBJS = 1
+            mobo.parameter_names = ["p0", "p1"]
+            mobo.objective_names = ["o0"]
+            mobo.parameters_info = [(0.0, 1.0), (0.0, 1.0)]
+            mobo.objectives_info = [(0.0, 1.0, 0)]
+            mobo.problem_bounds = FakeTensor([[0.0, 0.0], [1.0, 1.0]])
+
+            captured = {}
+
+            def fake_draw(bounds, n, q, seed):
+                captured["q"] = q
+                return FakeTensor(np.zeros((n, q, 2)))
+
+            mobo.draw_sobol_samples = fake_draw
+            mobo.objective_function = lambda conn, x: FakeTensor([0.0])
+            mobo.send_json_line = lambda conn, obj: None
+            mobo.update_pareto_flags = lambda *a, **k: None
+
+            train_x, train_y = mobo.generate_initial_data(conn=None, n_samples=5, start_iteration=10)
+
+            # Sobol drawn for skip(10) + n(5) points; only the 5 continuation rows are returned/used.
+            self.assertEqual(captured["q"], 15)
+            self.assertEqual(train_x.shape[0], 5)
+            self.assertEqual(train_y.shape[0], 5)
+
     def test_create_and_write_csv_helpers_propagate_errors(self):
         mobo = load_mobo_module()
         with mock.patch("builtins.open", side_effect=OSError("disk full")):

@@ -548,6 +548,41 @@ class BoTests(unittest.TestCase):
             with self.assertRaises(ValueError):
                 bo.generate_initial_data(conn=None, n_samples=0)
 
+    def test_generate_initial_data_continues_sobol_past_prior(self):
+        # Regression: sampling rounds that follow loaded prior/baseline data must add NEW Sobol
+        # points (a continuation of the sequence), not repeat the first `start_iteration` designs.
+        bo = load_bo_module()
+        with tempfile.TemporaryDirectory() as tmp:
+            bo.PROJECT_PATH = tmp
+            bo.USER_ID, bo.CONDITION_ID, bo.GROUP_ID = "u", "c", "g"
+            bo.RANDOM_ALLOCATION = False
+            bo.OPTIMIZED_INTRODUCTION = True
+            bo.PROBLEM_DIM = 2
+            bo.NUM_OBJS = 1
+            bo.parameter_names = ["p0", "p1"]
+            bo.objective_names = ["o0"]
+            bo.parameters_info = [(0.0, 1.0), (0.0, 1.0)]
+            bo.objectives_info = [(0.0, 1.0, 0)]
+            bo.problem_bounds = FakeTensor([[0.0, 0.0], [1.0, 1.0]])
+
+            captured = {}
+
+            def fake_draw(bounds, n, q, seed):
+                captured["q"] = q
+                return FakeTensor(np.zeros((n, q, 2)))
+
+            bo.draw_sobol_samples = fake_draw
+            bo.objective_function = lambda conn, x: FakeTensor([0.0])
+            bo.send_json_line = lambda conn, obj: None
+            bo.update_best_flags = lambda *a, **k: None
+
+            train_x, train_y = bo.generate_initial_data(conn=None, n_samples=5, start_iteration=10)
+
+            # Sobol drawn for skip(10) + n(5) points; only the 5 continuation rows are returned/used.
+            self.assertEqual(captured["q"], 15)
+            self.assertEqual(train_x.shape[0], 5)
+            self.assertEqual(train_y.shape[0], 5)
+
     def test_save_xy_rejects_corrupt_observation_schema(self):
         bo = load_bo_module()
         with tempfile.TemporaryDirectory() as tmp:

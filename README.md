@@ -346,6 +346,8 @@ python Assets/StreamingAssets/BOData/generate_baseline_sobol.py --n 10 --seed 3
 
 The CSV header must list the design-parameter keys in the same order as the `BoForUnityManager.parameters` list. If the file is missing or unreadable, the task logs an error and falls back to a deterministic seeded-random design per block.
 
+**Sampling rounds continue the same sequence.** When a later optimization phase runs sampling rounds on top of loaded prior/baseline data (e.g. the 15-round mode: 10 baseline + 5 sampling), `bo.py`/`mobo.py` offset the Sobol draw by the number of points already present, so the 5 sampling designs are points 11–15 of the sequence — **new** space-filling designs — rather than a repeat of baseline designs 1–5. This continuation is exact only when the backend `seed` matches the baseline generator's seed (`3` by default).
+
 #### 6.2.2 Design Parameters
 
 The scene is configured as a BO example with five scalar design parameters:
