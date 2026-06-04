@@ -98,6 +98,61 @@ namespace BOforUnity.Scripts
             return true;
         }
 
+        /// <summary>
+        /// Selects the final design directly from a known ObservationsPerEvaluation.csv path,
+        /// bypassing the log-folder search. Used by conditions that build their own observation
+        /// file (e.g. Random/Static, which combine the relevant baseline rows with their rounds)
+        /// so that every mode selects with the identical Pareto + utopia-distance rule.
+        /// </summary>
+        public static bool TrySelectFromObservationCsv(
+            string csvPath,
+            string userId,
+            string conditionId,
+            string groupId,
+            IList<ParameterEntry> parameters,
+            IList<ObjectiveEntry> objectives,
+            float distanceEpsilon,
+            float maximinEpsilon,
+            float aggressionEpsilon,
+            out SelectionResult selection,
+            out string error
+        )
+        {
+            selection = null;
+            error = null;
+
+            var effectiveParameters = BuildEffectiveParameterEntries(parameters);
+            var effectiveObjectives = BuildEffectiveObjectiveEntries(objectives);
+            if (effectiveParameters.Count == 0)
+            {
+                error = "No parameters are defined.";
+                return false;
+            }
+            if (effectiveObjectives.Count == 0)
+            {
+                error = "No objectives are defined.";
+                return false;
+            }
+            if (string.IsNullOrWhiteSpace(csvPath) || !File.Exists(csvPath))
+            {
+                error = $"Observation CSV not found: {csvPath}";
+                return false;
+            }
+
+            return TrySelectFinalDesign(
+                csvPath,
+                NormalizeContextToken(userId),
+                NormalizeContextToken(conditionId),
+                NormalizeContextToken(groupId),
+                effectiveParameters,
+                effectiveObjectives,
+                distanceEpsilon,
+                maximinEpsilon,
+                aggressionEpsilon,
+                out selection,
+                out error);
+        }
+
         private static List<ParameterEntry> BuildEffectiveParameterEntries(IList<ParameterEntry> parameters)
         {
             var result = new List<ParameterEntry>();

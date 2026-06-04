@@ -232,7 +232,6 @@ namespace BOforUnity.Examples
 		private bool _manualLogIsOptimizedIntroduction;
 
         private bool _hasBestDesignTracked = false;
-        private float _bestTaskCompletionTimeMs = float.MaxValue;
         private float _bestXFontSizePixels;
         private float _bestCircleSizePixels;
         private float _bestCircleDistancePixels;
@@ -245,7 +244,27 @@ namespace BOforUnity.Examples
         public void ResetBestDesignTracking()
         {
             _hasBestDesignTracked = false;
-            _bestTaskCompletionTimeMs = float.MaxValue;
+        }
+
+        /// <summary>
+        /// Sets the exact design that BeginTask will apply on the next "finaldesign" round.
+        /// Used by Random/Static conditions, whose best design is chosen by FinalDesignSelector
+        /// (best of the relevant baseline rounds + this condition's rounds) rather than by the
+        /// Python BO loop. AdaptiveBo never calls this, so its finaldesign uses the BO selection.
+        /// </summary>
+        public void SetFinalDesignOverride(
+            float xFontSizePixelsValue,
+            float buttonSizePixelsValue,
+            float buttonDistancePixelsValue,
+            float buttonHueValue,
+            float buttonSaturationValue)
+        {
+            _bestXFontSizePixels = xFontSizePixelsValue;
+            _bestCircleSizePixels = buttonSizePixelsValue;
+            _bestCircleDistancePixels = buttonDistancePixelsValue;
+            _bestButtonHue = buttonHueValue;
+            _bestButtonSaturation = buttonSaturationValue;
+            _hasBestDesignTracked = true;
         }
 
         private void Awake()
@@ -338,7 +357,7 @@ namespace BOforUnity.Examples
             // --- OVERRIDE IF FINAL DESIGN ---
             if (currentPhase == "finaldesign" && _hasBestDesignTracked)
             {
-                Debug.Log($"[FinalRound] Intercepted Random/Baseline Final Round. Applying Best Design Found ({_bestTaskCompletionTimeMs:0.0} ms).");
+                Debug.Log("[FinalRound] Applying FinalDesignSelector-selected best design for the final round.");
                 xFontSizePixels = _bestXFontSizePixels;
                 circleSizePixels = _bestCircleSizePixels;
                 circleDistancePixels = _bestCircleDistancePixels;
@@ -1618,19 +1637,6 @@ namespace BOforUnity.Examples
             _taskComplete = true;
             RestoreCursor();
             ComputeDesignObjectives();
-
-            string currentPhase = GetLogPhase(GetRuntimeDesignParameterSource());
-            if (currentPhase != "finaldesign" && taskCompletionTimeMs < _bestTaskCompletionTimeMs && taskCompletionTimeMs > 0f)
-            {
-                _bestTaskCompletionTimeMs = taskCompletionTimeMs;
-                _bestXFontSizePixels = xFontSizePixels;
-                _bestCircleSizePixels = circleSizePixels;
-                _bestCircleDistancePixels = circleDistancePixels;
-                _bestButtonHue = buttonHue;
-                _bestButtonSaturation = buttonSaturation;
-                _hasBestDesignTracked = true;
-                Debug.Log($"[Tracking] New best design recorded at round {GetLogIteration(GetRuntimeDesignParameterSource())}: {taskCompletionTimeMs:0.0} ms");
-            }
 
             for (int i = 0; i < _targetImages.Count; i++)
             {

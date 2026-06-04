@@ -64,6 +64,11 @@ namespace BOforUnity.Examples
         private bool _baselineBlockCompletionNotified;
         private int _lastBaselineCsvRoundWritten;
 
+        // Per-round (parameters, objectives) captured for non-baseline conditions (Random/Static),
+        // combined with the relevant baseline rows to pick the finaldesign via FinalDesignSelector.
+        private readonly List<float[]> _conditionFinalParamRows = new List<float[]>();
+        private readonly List<float[]> _conditionFinalObjRows = new List<float[]>();
+
         public bool UsesExternalIterationSignal
         {
             get
@@ -197,6 +202,8 @@ namespace BOforUnity.Examples
 
             if (captureBaselineCsv)
                 AppendBaselineCsvRow();
+            else
+                CaptureConditionRoundObservation();
 
             QueueNextRound();
         }
@@ -237,6 +244,9 @@ namespace BOforUnity.Examples
                 _baselineBlockCompletionNotified = false;
                 _lastBaselineCsvRoundWritten = 0;
                 _currentObjectiveValues.Clear();
+                _conditionFinalParamRows.Clear();
+                _conditionFinalObjRows.Clear();
+                fittsLawTask?.ResetBestDesignTracking();
             }
 
             _advanceQueued = true;
@@ -312,6 +322,8 @@ namespace BOforUnity.Examples
 
             if (captureBaselineCsv)
                 AppendBaselineCsvRow();
+            else
+                CaptureConditionRoundObservation();
 
             QueueNextRound();
         }
@@ -501,6 +513,9 @@ namespace BOforUnity.Examples
                 if (fittsLawTask != null)
                 {
                     fittsLawTask.useBaselineSobolDesigns = false;
+                    // Clear any finaldesign override left by a prior Random/Static condition so the
+                    // AdaptiveBo finaldesign uses the Python BO loop's FinalDesignSelector result.
+                    fittsLawTask.ResetBestDesignTracking();
                     fittsLawTask.SetRuntimeDesignParameterSource(source);
                     fittsLawTask.startOnAwake = true;
                     fittsLawTask.ensureBoManagerInScene = true;
@@ -775,6 +790,13 @@ namespace BOforUnity.Examples
             fittsLawTask.SetRuntimeDesignParameterSource(source);
             fittsLawTask.SetManualLogContext(_currentRound, phase, userId, conditionId, groupId, isRandom: conditionMode == ConditionMode.Random,
 			isOptimizedIntroduction: conditionMode == ConditionMode.AdaptiveBo && !_baselineBlockActive && (ResolveIterationSettingsSource()?.OptimisedForQuestionnaireCsv ?? false));
+
+            // For Random/Static finaldesign: pick the best of (relevant baseline + this condition's
+            // rounds) with FinalDesignSelector and hand it to the task as a finaldesign override.
+            // AdaptiveBo is excluded — its finaldesign comes from the Python BO loop's selection.
+            if (phase == "finaldesign" && !_baselineBlockActive && conditionMode != ConditionMode.AdaptiveBo)
+                TryPrepareConditionFinalDesign(source);
+
             fittsLawTask.BeginTask();
         }
 
@@ -892,6 +914,357 @@ namespace BOforUnity.Examples
             }
 
             Debug.LogWarning("FittsLawConditionManager: baseline block completed, but ExperimentConfig callback was not found.");
+        }
+
+        // ───────────────────────── Condition final-design selection ─────────────────────────
+        // Random/Static conditions run without the Python BO loop, so they cannot use the
+        // optimizer's ObservationsPerEvaluation. Instead we capture each round's (parameters,
+        // objectives), combine them with the relevant baseline rows (same user + scale), write an
+        // ObservationsPerEvaluation.csv in the canonical schema, and run the SAME FinalDesignSelector
+        // that the BO path uses — so every mode picks the finaldesign by Pareto + utopia distance.
+
+        private void CaptureConditionRoundObservation()
+        {
+            if (_baselineBlockActive || conditionMode == ConditionMode.AdaptiveBo)
+                return;
+            // Capture the just-finished round, excluding the finaldesign round itself.
+            if (_currentRound <= 0 || _currentRound > Mathf.Max(1, _baseRoundCount))
+                return;
+
+            string[] parameterKeys = CollectBaselineParameterKeys();
+            string[] objectiveKeys = CollectBaselineObjectiveKeys();
+            if (parameterKeys.Length == 0 || objectiveKeys.Length == 0)
+                return;
+
+            float[] parameterValues = new float[parameterKeys.Length];
+            for (int i = 0; i < parameterKeys.Length; i++)
+            {
+                TryGetParameterValue(parameterKeys[i], out float value);
+                parameterValues[i] = value;
+            }
+
+            float[] objectiveValues = new float[objectiveKeys.Length];
+            for (int i = 0; i < objectiveKeys.Length; i++)
+            {
+                if (!TryGetObjectiveValue(objectiveKeys[i], out float value))
+                    value = GetObjectiveFallbackValue(objectiveKeys[i]);
+                objectiveValues[i] = value;
+            }
+
+            _conditionFinalParamRows.Add(parameterValues);
+            _conditionFinalObjRows.Add(objectiveValues);
+        }
+
+        private void TryPrepareConditionFinalDesign(BoForUnityManager source)
+        {
+            try
+            {
+                if (fittsLawTask == null || source == null ||
+                    source.parameters == null || source.parameters.Count == 0 ||
+                    source.objectives == null || source.objectives.Count == 0)
+                    return;
+
+                string[] parameterKeys = CollectBaselineParameterKeys();
+                string[] objectiveKeys = CollectBaselineObjectiveKeys();
+                if (parameterKeys.Length == 0 || objectiveKeys.Length == 0)
+                    return;
+
+                var paramRows = new List<float[]>();
+                var objRows = new List<float[]>();
+                var phases = new List<string>();
+
+                ReadBaselineObservations(parameterKeys, objectiveKeys, paramRows, objRows, phases);
+
+                int conditionRows = Mathf.Min(_conditionFinalParamRows.Count, _conditionFinalObjRows.Count);
+                for (int i = 0; i < conditionRows; i++)
+                {
+                    paramRows.Add(_conditionFinalParamRows[i]);
+                    objRows.Add(_conditionFinalObjRows[i]);
+                    phases.Add("sampling");
+                }
+
+                if (paramRows.Count == 0)
+                {
+                    Debug.LogWarning("FittsLawConditionManager: no candidates for condition final design; keeping last design.");
+                    return;
+                }
+
+                string csvPath = WriteConditionObservationsCsv(source, parameterKeys, objectiveKeys, paramRows, objRows, phases);
+                if (string.IsNullOrEmpty(csvPath))
+                    return;
+
+                if (FinalDesignSelector.TrySelectFromObservationCsv(
+                        csvPath,
+                        ResolveContextValue(userId),
+                        ResolveContextValue(conditionId),
+                        ResolveContextValue(groupId),
+                        source.parameters,
+                        source.objectives,
+                        source.finalDesignDistanceEpsilon,
+                        source.finalDesignMaximinEpsilon,
+                        source.finalDesignAggressionEpsilon,
+                        out FinalDesignSelector.SelectionResult selection,
+                        out string selectionError) &&
+                    selection != null && selection.ParameterRaw != null)
+                {
+                    ApplySelectedFinalDesignToTask(source, selection.ParameterRaw);
+                    Debug.Log(
+                        $"FittsLawConditionManager: final design chosen from {paramRows.Count} candidates " +
+                        $"(baseline + {conditionRows} condition rounds) for user '{userId}', scale '{conditionId}'.");
+                }
+                else
+                {
+                    Debug.LogWarning(
+                        $"FittsLawConditionManager: FinalDesignSelector failed ({selectionError}); keeping last design.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Debug.LogWarning($"FittsLawConditionManager: condition final-design preparation error: {ex.Message}");
+            }
+        }
+
+        private void ReadBaselineObservations(
+            string[] parameterKeys,
+            string[] objectiveKeys,
+            List<float[]> paramRows,
+            List<float[]> objRows,
+            List<string> phases)
+        {
+            string folder = LogDataFolderUtility.NormalizeLogFolderToken(ResolveContextValue(userId));
+            string scale = ResolveContextValue(conditionId);
+            string dir = Path.Combine(Application.streamingAssetsPath, "BOData", "InitData", folder);
+            string paramsPath = Path.Combine(dir, $"baseline_{scale}_params.csv");
+            string objectivesPath = Path.Combine(dir, $"baseline_{scale}_objectives.csv");
+            if (!File.Exists(paramsPath) || !File.Exists(objectivesPath))
+            {
+                Debug.LogWarning(
+                    $"FittsLawConditionManager: baseline files for final-design selection not found ('{paramsPath}').");
+                return;
+            }
+
+            List<float[]> baselineParams = ReadKeyedCsv(paramsPath, parameterKeys);
+            List<float[]> baselineObjectives = ReadKeyedCsv(objectivesPath, objectiveKeys);
+            int count = Mathf.Min(baselineParams.Count, baselineObjectives.Count);
+            for (int i = 0; i < count; i++)
+            {
+                paramRows.Add(baselineParams[i]);
+                objRows.Add(baselineObjectives[i]);
+                phases.Add("baseline");
+            }
+        }
+
+        private static List<float[]> ReadKeyedCsv(string path, string[] keys)
+        {
+            var rows = new List<float[]>();
+            string[] lines = File.ReadAllLines(path);
+            if (lines.Length < 2)
+                return rows;
+
+            string[] header = lines[0].Split(';');
+            int[] columnIndex = new int[keys.Length];
+            for (int k = 0; k < keys.Length; k++)
+            {
+                columnIndex[k] = -1;
+                for (int h = 0; h < header.Length; h++)
+                {
+                    if (string.Equals(header[h].Trim(), keys[k], StringComparison.Ordinal))
+                    {
+                        columnIndex[k] = h;
+                        break;
+                    }
+                }
+                if (columnIndex[k] < 0)
+                    return new List<float[]>();
+            }
+
+            for (int li = 1; li < lines.Length; li++)
+            {
+                string line = lines[li]?.Trim();
+                if (string.IsNullOrEmpty(line))
+                    continue;
+
+                string[] parts = line.Split(';');
+                float[] values = new float[keys.Length];
+                bool ok = true;
+                for (int k = 0; k < keys.Length; k++)
+                {
+                    if (columnIndex[k] >= parts.Length ||
+                        !float.TryParse(parts[columnIndex[k]].Trim(), NumberStyles.Float, CultureInfo.InvariantCulture, out values[k]))
+                    {
+                        ok = false;
+                        break;
+                    }
+                }
+                if (ok)
+                    rows.Add(values);
+            }
+
+            return rows;
+        }
+
+        private string WriteConditionObservationsCsv(
+            BoForUnityManager source,
+            string[] parameterKeys,
+            string[] objectiveKeys,
+            List<float[]> paramRows,
+            List<float[]> objRows,
+            List<string> phases)
+        {
+            bool[] pareto = ComputeParetoFlags(source, objectiveKeys, objRows);
+
+            string folder = LogDataFolderUtility.NormalizeLogFolderToken(ResolveContextValue(userId));
+            string conditionFolder = LogDataFolderUtility.NormalizeLogFolderToken(ResolveContextValue(conditionId));
+            string root = Path.Combine(
+                Application.streamingAssetsPath, "BOData", "LogData", folder, conditionFolder);
+            string runDir = GetUniqueRunDirectory(root);
+            Directory.CreateDirectory(runDir);
+            string csvPath = Path.Combine(runDir, "ObservationsPerEvaluation.csv");
+
+            string timestamp = DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss", CultureInfo.InvariantCulture);
+            string randomToken = conditionMode == ConditionMode.Random ? "true" : "false";
+            string optimisedToken = OptimisedForQuestionnaireCsv ? "true" : "false";
+
+            var header = new List<string>
+            {
+                "UserID", "Scale", "SamplingRounds", "Random", "OptimizedIntroduction",
+                "Timestamp", "Iteration", "Phase", "IsPareto"
+            };
+            header.AddRange(objectiveKeys);
+            header.AddRange(parameterKeys);
+
+            var builder = new StringBuilder();
+            builder.Append(BuildSemicolonCsvLine(header.ToArray())).Append(Environment.NewLine);
+
+            for (int i = 0; i < paramRows.Count; i++)
+            {
+                var cells = new List<string>
+                {
+                    ResolveContextValue(userId),
+                    ResolveContextValue(conditionId),
+                    ResolveContextValue(groupId),
+                    randomToken,
+                    optimisedToken,
+                    timestamp,
+                    (i + 1).ToString(CultureInfo.InvariantCulture),
+                    phases[i],
+                    pareto[i] ? "true" : "false"
+                };
+                for (int k = 0; k < objectiveKeys.Length; k++)
+                    cells.Add(FormatCsvFloat(objRows[i][k]));
+                for (int k = 0; k < parameterKeys.Length; k++)
+                    cells.Add(FormatCsvFloat(paramRows[i][k]));
+
+                builder.Append(BuildSemicolonCsvLine(cells.ToArray())).Append(Environment.NewLine);
+            }
+
+            File.WriteAllText(csvPath, builder.ToString(), Utf8NoBom);
+            return csvPath;
+        }
+
+        private static string GetUniqueRunDirectory(string root)
+        {
+            string baseDir = Path.Combine(root, "run");
+            if (!Directory.Exists(baseDir))
+                return baseDir;
+            for (int i = 1; i < 100000; i++)
+            {
+                string candidate = Path.Combine(root, "run_" + i.ToString(CultureInfo.InvariantCulture));
+                if (!Directory.Exists(candidate))
+                    return candidate;
+            }
+            return baseDir;
+        }
+
+        // Global Pareto front over all candidate rows (directed by each objective's smallerIsBetter).
+        private static bool[] ComputeParetoFlags(BoForUnityManager source, string[] objectiveKeys, List<float[]> objRows)
+        {
+            int n = objRows.Count;
+            int m = objectiveKeys.Length;
+            float[] direction = new float[m];
+            for (int k = 0; k < m; k++)
+            {
+                bool smallerIsBetter = false;
+                if (source != null && source.objectives != null)
+                {
+                    for (int o = 0; o < source.objectives.Count; o++)
+                    {
+                        ObjectiveEntry entry = source.objectives[o];
+                        if (entry != null && entry.value != null &&
+                            string.Equals(entry.key, objectiveKeys[k], StringComparison.Ordinal))
+                        {
+                            smallerIsBetter = entry.value.smallerIsBetter;
+                            break;
+                        }
+                    }
+                }
+                direction[k] = smallerIsBetter ? -1f : 1f;
+            }
+
+            bool[] pareto = new bool[n];
+            for (int i = 0; i < n; i++)
+            {
+                bool dominated = false;
+                for (int j = 0; j < n && !dominated; j++)
+                {
+                    if (j == i)
+                        continue;
+                    bool allAtLeastAsGood = true;
+                    bool strictlyBetterSomewhere = false;
+                    for (int k = 0; k < m; k++)
+                    {
+                        float vi = direction[k] * objRows[i][k];
+                        float vj = direction[k] * objRows[j][k];
+                        if (vj < vi - 1e-9f)
+                        {
+                            allAtLeastAsGood = false;
+                            break;
+                        }
+                        if (vj > vi + 1e-9f)
+                            strictlyBetterSomewhere = true;
+                    }
+                    if (allAtLeastAsGood && strictlyBetterSomewhere)
+                        dominated = true;
+                }
+                pareto[i] = !dominated;
+            }
+            return pareto;
+        }
+
+        private void ApplySelectedFinalDesignToTask(BoForUnityManager source, float[] selectedParameterRaw)
+        {
+            // selectedParameterRaw is ordered like FinalDesignSelector's effective parameters
+            // (the deduplicated source.parameters key order). Map by key to the task design fields.
+            var orderedKeys = new List<string>();
+            var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < source.parameters.Count; i++)
+            {
+                ParameterEntry parameter = source.parameters[i];
+                if (parameter == null || parameter.value == null || string.IsNullOrWhiteSpace(parameter.key))
+                    continue;
+                string key = parameter.key.Trim();
+                if (seen.Add(key))
+                    orderedKeys.Add(key);
+            }
+
+            float xFontSize = fittsLawTask.xFontSizePixels;
+            float buttonSize = fittsLawTask.circleSizePixels;
+            float buttonDistance = fittsLawTask.circleDistancePixels;
+            float hue = fittsLawTask.buttonHue;
+            float saturation = fittsLawTask.buttonSaturation;
+
+            for (int i = 0; i < orderedKeys.Count && i < selectedParameterRaw.Length; i++)
+            {
+                string key = orderedKeys[i];
+                float value = selectedParameterRaw[i];
+                if (string.Equals(key, fittsLawTask.xFontSizeParameterKey, StringComparison.Ordinal)) xFontSize = value;
+                else if (string.Equals(key, fittsLawTask.buttonSizeParameterKey, StringComparison.Ordinal)) buttonSize = value;
+                else if (string.Equals(key, fittsLawTask.buttonDistanceParameterKey, StringComparison.Ordinal)) buttonDistance = value;
+                else if (string.Equals(key, fittsLawTask.buttonHueParameterKey, StringComparison.Ordinal)) hue = value;
+                else if (string.Equals(key, fittsLawTask.buttonSaturationParameterKey, StringComparison.Ordinal)) saturation = value;
+            }
+
+            fittsLawTask.SetFinalDesignOverride(xFontSize, buttonSize, buttonDistance, hue, saturation);
         }
 
         private string GetBaselineCsvDirectory()
