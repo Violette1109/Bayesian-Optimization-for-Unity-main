@@ -1995,7 +1995,7 @@ namespace BOforUnity.Examples
 			else
 			{
 				// Fallback for genuine BO runs where the manager is definitely alive
-				var manager = GetRuntimeDesignParameterSource();
+				manager = GetRuntimeDesignParameterSource();
 				random = manager != null && manager.questionnaireRandomForCsv ? "true" : "false";
 				optimizedIntroduction = manager != null && manager.questionnaireOptimisedForCsv ? "true" : "false";
 			}
