@@ -778,7 +778,8 @@ namespace BOforUnity.Examples
             }
 
             fittsLawTask.SetRuntimeDesignParameterSource(source);
-            fittsLawTask.SetManualLogContext(_currentRound, phase, userId, conditionId, groupId);
+            fittsLawTask.SetManualLogContext(_currentRound, phase, userId, conditionId, groupId, isRandom: conditionMode == ConditionMode.Random,
+			isOptimizedIntroduction: conditionMode == ConditionMode.AdaptiveBo && !_baselineBlockActive && (ResolveIterationSettingsSource()?.OptimisedForQuestionnaireCsv ?? false));
             fittsLawTask.BeginTask();
         }
 

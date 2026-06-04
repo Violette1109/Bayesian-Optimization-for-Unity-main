@@ -227,6 +227,9 @@ namespace BOforUnity.Examples
         private string _manualLogDirectory;
         private BoForUnityManager _runtimeDesignParameterSource;
         private int _autoStartGeneration;
+		
+		private bool _manualLogIsRandom;
+		private bool _manualLogIsOptimizedIntroduction;
 
         private void Awake()
         {
@@ -379,7 +382,9 @@ namespace BOforUnity.Examples
             string phase,
             string userId,
             string conditionId,
-            string groupId)
+            string groupId,
+			bool isRandom,
+			bool isOptimizedIntroduction)
         {
             _manualLogContextActive = true;
             _manualLogIteration = Mathf.Max(1, iteration);
@@ -388,6 +393,9 @@ namespace BOforUnity.Examples
             _manualLogConditionId = GetContextValue(conditionId);
             _manualLogGroupId = GetContextValue(groupId);
             _manualLogDirectory = null;
+			
+			_manualLogIsRandom = isRandom;
+			_manualLogIsOptimizedIntroduction = isOptimizedIntroduction;
         }
 
         public void ClearManualLogContext()
@@ -1977,9 +1985,21 @@ namespace BOforUnity.Examples
             ResolveFittsLogContext(manager, out string userId, out string conditionId, out string groupId);
             string iteration = GetLogIteration(manager);
             string phase = GetLogPhase(manager);
-            string random = manager != null && manager.questionnaireRandomForCsv ? "true" : "false";
-            string optimizedIntroduction = manager != null && manager.questionnaireOptimisedForCsv ? "true" : "false";
-
+			
+			string random, optimizedIntroduction;
+			if (_manualLogContextActive)
+			{
+				random = _manualLogIsRandom ? "true" : "false";
+				optimizedIntroduction = _manualLogIsOptimizedIntroduction ? "true" : "false";
+			}
+			else
+			{
+				// Fallback for genuine BO runs where the manager is definitely alive
+				var manager = GetRuntimeDesignParameterSource();
+				random = manager != null && manager.questionnaireRandomForCsv ? "true" : "false";
+				optimizedIntroduction = manager != null && manager.questionnaireOptimisedForCsv ? "true" : "false";
+			}
+			
             string summaryPath = Path.Combine(logRoot, GetCsvFileName(appSummaryLogFileName, "FittsLawAppLog.csv"));
             string trialPath = Path.Combine(logRoot, GetCsvFileName(appTrialLogFileName, "FittsLawTrialLog.csv"));
 
