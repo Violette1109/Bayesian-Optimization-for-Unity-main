@@ -256,7 +256,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   targetCount: 12
-  trialCount: 1
+  trialCount: 5
   startOnAwake: 1
   startDelaySeconds: 0.25
   restartWithKey: 1
@@ -289,6 +289,8 @@ MonoBehaviour:
   randomizeDesignParametersOnBegin: 0
   useDeterministicRandomDesignSeed: 0
   randomDesignSeed: 98765
+  useBaselineSobolDesigns: 0
+  baselineSobolDesignFileName: baseline_sobol_unit.csv
   targetSelectionMode: 0
   firstTargetIndex: 0
   targetStep: 1
@@ -535,7 +537,7 @@ MonoBehaviour:
   optimizationRunning: 0
   optimizationFinished: 0
   localPython: 1
-  pythonPath: /Library/Frameworks/Python.framework/Versions/3.13/bin/python3
+  pythonPath: C:\Users\localadmin\AppData\Local\Programs\Python\Python313\python.exe
 --- !u!114 &300003
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -615,12 +617,14 @@ MonoBehaviour:
   rounds15Btn: {fileID: 230017088}
   warmStartToggle: {fileID: 1683982804}
   randomAllocationToggle: {fileID: 1159306731}
-  optimizedToggle: {fileID: 0}
+  optimizedToggle: {fileID: 2034113855}
   startBtn: {fileID: 47043014}
   targetObjectiveKey: mental_demand
   optimizationRoundsFor10: 5
   optimizationRoundsFor15: 0
+  optimizationRoundsForRandom: 0
   boManager: {fileID: 300002}
+  baselineScaleOrderMode: 0
 --- !u!1 &1254488
 GameObject:
   m_ObjectHideFlags: 0
